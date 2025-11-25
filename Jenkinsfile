@@ -2,7 +2,9 @@ pipeline {
     agent any
 
     environment {
-        IMAGE = "sunhithreddy/imt2023113:jenkins"
+        IMAGE  = "sunhithreddy/imt2023113:jenkins"
+        PYTHON = "python"  // or "py" if that's how Python is installed
+        VENV   = "venv"
     }
 
     stages {
@@ -10,37 +12,37 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout([$class: 'GitSCM',
-                  branches: [[name: '*/main']],
-                  userRemoteConfigs: [[
-                    url: 'https://github.com/codetuscan/SE_lab_ci_cd.git',
-                    credentialsId: 'github-creds'
-                  ]]
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/codetuscan/SE_lab_ci_cd.git',
+                        credentialsId: 'github-creds'
+                    ]]
                 ])
             }
         }
 
         stage('Create Virtual Environment') {
             steps {
-                sh '$PYTHON -m venv $VENV'
-                sh '$VENV/bin/pip install --upgrade pip'
+                bat '%PYTHON% -m venv %VENV%'
+                bat '%VENV%\\Scripts\\python -m pip install --upgrade pip'
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                sh '$VENV/bin/pip install -r requirements.txt'
+                bat '%VENV%\\Scripts\\pip install -r requirements.txt'
             }
         }
 
         stage('Run Tests') {
             steps {
-                sh '$VENV/bin/pytest -v'
+                bat '%VENV%\\Scripts\\pytest -v'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $IMAGE .'
+                bat 'docker build -t %IMAGE% .'
             }
         }
 
@@ -49,22 +51,22 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
                                                   usernameVariable: 'USER',
                                                   passwordVariable: 'PASS')]) {
-                    sh '''
-                      echo $PASS | docker login -u $USER --password-stdin
-                      docker push $IMAGE
-                    '''
+                    bat """
+                        echo %PASS% | docker login -u %USER% --password-stdin
+                        docker push %IMAGE%
+                    """
                 }
             }
         }
 
         stage('Deploy Container') {
             steps {
-                sh '''
-                  docker pull $IMAGE
-                  docker stop ci-cd-demo || true
-                  docker rm ci-cd-demo || true
-                  docker run -d -p 5000:5000 --name ci-cd-demo $IMAGE
-                '''
+                bat """
+                    docker pull %IMAGE%
+                    docker stop ci-cd-demo || echo No container to stop
+                    docker rm ci-cd-demo || echo No container to remove
+                    docker run -d -p 5000:5000 --name ci-cd-demo %IMAGE%
+                """
             }
         }
     }
